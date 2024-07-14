@@ -15,42 +15,59 @@ def ingest(params):
     table_name = params.table_name
     url = params.url
 
-    csv_name = 'nyc_data.csv.gz' if url.endswith('.csv.gz') else 'nyc_data.csv'
-    os.system(f"wget {url} -O {csv_name}")
+    # Extracting file name from url
+    file_name = url.rsplit('/', 1)[-1].strip()
+    print(f'Downloading : {file_name} ... ')
 
+    os.system(f'curl {url.strip()} -o {file_name}')
+    print('\n')
+
+    # Init sql engine
     engine = create_engine(f'postgressql://{user}:{password}@{host}:{port}/{db}')
 
-    df_iter = pd.read_csv(csv_name, iterator=True, chunksize=100000)
-    df = next(df_iter)
+    if '.csv' in file_name:
+        df = pd.read_csv(file_name, nrows=10)
+        df_iter = pd.read_csv(file_name, iterator=True, chunksize=100000)
 
-    df.tpep_pickup_datetime = pd.to_datetime(df.tpep_pickup_datetime)
-    df.tpep_dropoff_datetime = pd.to_datetime(df.tpep_dropoff_datetime)
+    elif '.parquet' in file_name:
+        file = pq.ParquetFile(file_name)
+
+        df = next(file.iter_batches(batch_size=10)).to_pandas()
+        df_iter = file.iter_batches(batch_size=100000)
+
+    else:
+        print('ERROR: Only CSV and PARQUET file formats allowed !')
+        sys.exit()
+
+
 
     #create table schema, if exists : replace
-    df.head(n=0).to_sql(name=table_name, con=engine, if_exists='replace')
+    df.head(0).to_sql(name=table_name, con=engine, if_exists='replace')
 
-    #insert first chuck
-    df.to_sql(name=table_name, con=engine, if_exists='append')
+    #Load Values
+    t_start = time()
+    count = 0
+    for batch in df_iter:
+            
+            count+=1
+            
+            if '.parquet' in file_name:
+                batch_df = batch.to_pandas()
+            else:
+                batch_df = batch
+                # df.tpep_pickup_datetime = pd.to_datetime(df.tpep_pickup_datetime)
+                # df.tpep_dropoff_datetime = pd.to_datetime(df.tpep_dropoff_datetime)
 
-    while True:
-        try:
-            t_start = time()
+            print(f'Inserting batch: {count} ...')
 
-            df = next(df_iter)
+            b_start = time()
+            batch_df.to_sql(name=table_name, con=engine, if_exists='append')
+            b_end = time()
 
-            df.tpep_pickup_datetime = pd.to_datetime(df.tpep_pickup_datetime)
-            df.tpep_dropoff_datetime = pd.to_datetime(df.tpep_dropoff_datetime)
+            print(f'Batch {count} Inserted! Time taken : {b_end-b_start:10.3f} seconds.\n')
 
-            df.to_sql(name=table_name, con=engine, if_exists='append')
-
-            t_end = time()
-
-            print('Chunk Inserted, took %.3f second' % (t_end - t_start))
-
-        except StopIteration:
-            count = pd.read_sql_query('select count(*) from "{}"'.format(table_name), con=engine)
-            print(count)
-            break
+    t_end = time()
+    print(f'Ingestion Completed ! took {t_end-t_start:10.3f} seconds for {count} batches.')
 
 
 if __name__ == "__main__" :
