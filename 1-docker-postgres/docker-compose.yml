@@ -6,7 +6,7 @@ services:
       - POSTGRES_PASSWORD=nbroot
       - POSTGRES_DB=nyc_taxi
     volumes:
-      - ./nyc_taxi_postgres_data:/var/lib/postgressql/
+      - ./nyc_taxi_postgres_data:/var/lib/postgressql/data:rw
     ports:
       - "5432:5432"
   
