@@ -1,12 +1,10 @@
-FROM python
+FROM python:latest
 
 RUN apt-get install wget
-RUN pip install pandas sqlalchemy psycopg2
+RUN pip install pandas sqlalchemy psycopg2 pyarrow
 
 WORKDIR /jobs
 
-COPY ingest_data.py ingest_data
+COPY ingest_data.py ingest_data.py
 
-# start the script here , script should contain whole ETL pipeline 
-# functionality
-ENTRYPOINT [ "python", "" ]
+ENTRYPOINT [ "python", "ingest_data.py" ]

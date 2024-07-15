@@ -23,7 +23,7 @@ def ingest(params):
     print('\n')
 
     # Init sql engine
-    engine = create_engine(f'postgressql://{user}:{password}@{host}:{port}/{db}')
+    engine = create_engine(f'postgresql://{user}:{password}@{host}:{port}/{db}')
 
     if '.csv' in file_name:
         df = pd.read_csv(file_name, nrows=10)
@@ -53,6 +53,7 @@ def ingest(params):
             
             if '.parquet' in file_name:
                 batch_df = batch.to_pandas()
+
             else:
                 batch_df = batch
                 # df.tpep_pickup_datetime = pd.to_datetime(df.tpep_pickup_datetime)
